@@ -30,7 +30,7 @@
 #define STM32_FLASH_CR_OFFSET	0x10			/* offset of CR register in FLASH struct */
 #define STM32_FLASH_SR_OFFSET	0x0c			/* offset of SR register in FLASH struct */
 
-#define STM32_PROG16		0x101			/* PG | PSIZE_16*/
+#define STM32_PROG16		0x201			/* PG | PSIZE_16*/
 
 	.thumb_func
 	.global	_start
@@ -45,8 +45,8 @@ wait_fifo:
 
 	ldr		r6, =STM32_PROG16
 	str		r6, [r4, #STM32_FLASH_CR_OFFSET]
-	ldrh 	r6, [r7], #0x02						/* read one half-word from src, increment ptr */
-	strh 	r6, [r2], #0x02						/* write one half-word from src, increment ptr */
+	ldr 	r6, [r7], #0x04						/* read one half-word from src, increment ptr */
+	str 	r6, [r2], #0x04						/* write one half-word from src, increment ptr */
 	dsb
 busy:
 	ldr 	r6, [r4, #STM32_FLASH_SR_OFFSET]

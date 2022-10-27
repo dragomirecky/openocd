@@ -639,8 +639,10 @@ static int stm32x_erase(struct flash_bank *bank, unsigned int first,
 		else
 			snb = i;
 
+		LOG_INFO("Erasing sector %i", i);
+
 		retval = target_write_u32(target,
-				stm32x_get_flash_reg(bank, STM32_FLASH_CR), FLASH_SER | FLASH_SNB(snb) | FLASH_STRT);
+				stm32x_get_flash_reg(bank, STM32_FLASH_CR), FLASH_SER | FLASH_SNB(snb) | FLASH_STRT | FLASH_PSIZE_32);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -760,7 +762,7 @@ static int stm32x_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	buf_set_u32(reg_params[3].value, 0, 32, count);
 	buf_set_u32(reg_params[4].value, 0, 32, STM32_FLASH_BASE);
 
-	retval = target_run_flash_async_algorithm(target, buffer, count, 2,
+	retval = target_run_flash_async_algorithm(target, buffer, count, 4,
 			0, NULL,
 			5, reg_params,
 			source->address, source->size,
@@ -799,8 +801,8 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 		uint32_t offset, uint32_t count)
 {
 	struct target *target = bank->target;
-	uint32_t words_remaining = (count / 2);
-	uint32_t bytes_remaining = (count & 0x00000001);
+	uint32_t words_remaining = (count / 4);
+	uint32_t bytes_remaining = (count & 0x00000003);
 	uint32_t address = bank->base + offset;
 	uint32_t bytes_written = 0;
 	int retval;
@@ -819,6 +821,8 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (retval != ERROR_OK)
 		return retval;
 
+	LOG_INFO("Writing...");
+
 	/* multiple half words (2-byte) to be programmed? */
 	if (words_remaining > 0) {
 		/* try using a block write */
@@ -830,8 +834,8 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 				LOG_WARNING("couldn't use block writes, falling back to single memory accesses");
 			}
 		} else {
-			buffer += words_remaining * 2;
-			address += words_remaining * 2;
+			buffer += words_remaining * 4;
+			address += words_remaining * 4;
 			words_remaining = 0;
 		}
 	}
@@ -857,11 +861,11 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 	*/
 	while (words_remaining > 0) {
 		retval = target_write_u32(target, stm32x_get_flash_reg(bank, STM32_FLASH_CR),
-				FLASH_PG | FLASH_PSIZE_16);
+				FLASH_PG | FLASH_PSIZE_32);
 		if (retval != ERROR_OK)
 			return retval;
 
-		retval = target_write_memory(target, address, 2, 1, buffer + bytes_written);
+		retval = target_write_memory(target, address, 4, 1, buffer + bytes_written);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -869,9 +873,9 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 		if (retval != ERROR_OK)
 			return retval;
 
-		bytes_written += 2;
+		bytes_written += 4;
 		words_remaining--;
-		address += 2;
+		address += 4;
 	}
 
 	if (bytes_remaining) {
@@ -1522,11 +1526,15 @@ static int stm32x_mass_erase(struct flash_bank *bank)
 	if (retval != ERROR_OK)
 		return retval;
 
+	LOG_INFO("Erasing the whole chip...");
+
 	/* mass erase flash memory */
 	if (stm32x_info->has_large_mem)
 		flash_mer = FLASH_MER | FLASH_MER1;
 	else
 		flash_mer = FLASH_MER;
+
+	flash_mer |= FLASH_PSIZE_32;
 
 	retval = target_write_u32(target, stm32x_get_flash_reg(bank, STM32_FLASH_CR), flash_mer);
 	if (retval != ERROR_OK)
