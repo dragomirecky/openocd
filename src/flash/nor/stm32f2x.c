@@ -589,6 +589,8 @@ static int stm32x_protect_check(struct flash_bank *bank)
 	return ERROR_OK;
 }
 
+static int stm32x_mass_erase(struct flash_bank *bank);
+
 static int stm32x_erase(struct flash_bank *bank, unsigned int first,
 		unsigned int last)
 {
@@ -598,6 +600,13 @@ static int stm32x_erase(struct flash_bank *bank, unsigned int first,
 	if (stm32x_is_otp(bank)) {
 		LOG_ERROR("Cannot erase OTP memory");
 		return ERROR_FAIL;
+	}
+
+	if (first == 0) {
+		if(last != bank->num_sectors - 1) {
+			LOG_WARNING("Erasing everything to speedup the process, even though erase of sectors %i-%i was requested only!", first, last);
+		}
+		return stm32x_mass_erase(bank);
 	}
 
 	assert((first <= last) && (last < bank->num_sectors));
